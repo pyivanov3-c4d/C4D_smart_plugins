@@ -1,0 +1,12 @@
+STRINGTABLE Onoisespread
+{
+ Onoisespread "NoiseSpread";
+ NS_SIZE "Size";
+ NS_FEATHER "Size Feather";
+ NS_NOISE "Size Noise";
+ NS_SELECTION "Polygon Selection";
+ NS_ADVANCED "Packing";
+ NS_SEED "Seed";
+ NS_LIMIT "Instance Limit";
+ NS_STATUS "First child: surface. Remaining children: sources.";
+}

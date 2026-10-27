@@ -1,0 +1,68 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "closed": true,
+      "density": 1,
+      "points": 473,
+      "polygons": 712,
+      "quads": 144
+    },
+    {
+      "closed": true,
+      "density": 2,
+      "points": 1239,
+      "polygons": 1768,
+      "quads": 576
+    },
+    {
+      "closed": true,
+      "density": 3,
+      "points": 2263,
+      "polygons": 3080,
+      "quads": 1296
+    },
+    {
+      "closed": false,
+      "density": 1,
+      "points": 608,
+      "polygons": 838,
+      "quads": 288
+    },
+    {
+      "closed": false,
+      "density": 2,
+      "points": 1796,
+      "polygons": 2306,
+      "quads": 1152
+    },
+    {
+      "closed": false,
+      "density": 3,
+      "points": 3528,
+      "polygons": 4314,
+      "quads": 2592
+    }
+  ],
+  "curved_rim_samples": [
+    36,
+    72
+  ],
+  "min_curve_vs_chord_distance": 0.05696855737816151,
+  "multisegment_samples": [
+    [
+      99,
+      12,
+      68
+    ],
+    [
+      198,
+      24,
+      136
+    ]
+  ],
+  "xor_density_2": {
+    "points": 3223,
+    "polygons": 3822
+  }
+}

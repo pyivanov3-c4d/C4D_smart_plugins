@@ -1,0 +1,16 @@
+{
+  "baseline_seconds": 16.0674645,
+  "optimized_seconds": [
+    5.019107099971734,
+    5.055650099995546,
+    5.014821699995082
+  ],
+  "exact_output_match": true,
+  "input": "Gaming Mini sampled contours",
+  "width": 5,
+  "subdivision": 3,
+  "closed": false,
+  "profile": "kernel default",
+  "scope": "geometry rebuild excluding host startup and sampling",
+  "speedup": 3.1944160814269136
+}

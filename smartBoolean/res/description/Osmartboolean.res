@@ -1,0 +1,14 @@
+CONTAINER Osmartboolean
+{
+    NAME Osmartboolean;
+    INCLUDE Obase;
+    GROUP ID_OBJECTPROPERTIES
+    {
+        LONG SB_MODE { CYCLE { SB_UNION; SB_SUBTRACT; SB_INTERSECT; } }
+        REAL SB_WIDTH { UNIT METER; MIN 0; STEP 0.1; }
+        LONG SB_SUBDIVISION { MIN 1; MAX 128; STEP 1; }
+        REAL SB_ROUNDNESS { MIN -1; MAX 1; STEP 0.01; }
+        BOOL SB_POINTS_REMOVE { }
+        BUTTON SB_CONVERT_HIDE { }
+    }
+}

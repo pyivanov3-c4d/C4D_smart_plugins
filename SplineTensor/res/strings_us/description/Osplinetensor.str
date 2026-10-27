@@ -1,0 +1,9 @@
+STRINGTABLE Osplinetensor
+{
+    Osplinetensor "SplineTensor";
+    ST_WIDTH "Spathe Width";
+    ST_SUBDIVISION "Subdivision";
+    ST_CURVE "Curve";
+    ST_CLOSED "Closed";
+    ST_DENSITY "Density";
+}

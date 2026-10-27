@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "checks": [
+    "Actual Outline output: two closed segments, offset geometry retained",
+    "Nested Circle radius edit invalidates cache and changes relief",
+    "Outline distance edit refreshes output",
+    "50 unchanged generated-input evaluations: no rebuilds",
+    "Native generator evaluation with Outline",
+    "Connect output: both segments and nested transforms preserved",
+    "Nested Connect movement updates native output",
+    "20 unchanged native Connect evaluations preserve the same cache"
+  ]
+}

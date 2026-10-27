@@ -1,0 +1,30 @@
+{
+  "c4d_version": 2026304,
+  "checks": [
+    "Default Curve endpoints",
+    "Zero width step with locally refined flat mesh",
+    "Crossing child clips to base boundary in both Closed modes",
+    "Two Bezier endpoints, reversed default bend, 16 actual band quads",
+    "Spathe quads retained; flat mesh gains local boundary and interior samples",
+    "Moving second child updates height and dirty state",
+    "Zero-distance relief: base only, four points and two triangles, both Closed modes",
+    "100 unchanged evaluations: zero geometry builds; width and Curve edits invalidate cache",
+    "Old default migrates to two knots; custom 17-knot curve is preserved",
+    "Object plugin and description resource registration",
+    "Generator Phong settings propagate and update; projected contour has explicit edge breaks",
+    "20 unchanged document passes preserve the same generator cache",
+    "Parametric rectangle/circle: real generator cache and movement reevaluation",
+    "Saved rectangle/circle example scene",
+    "Closed defaults on; toggle off reevaluates two-sided bevel with base-level center",
+    "Toggle Closed back on restores original surface",
+    "Both Closed modes: child 2 controls height of every region; child 3 Z does not change height",
+    "Overlapping parametric circles generate a united relief with child-2 height",
+    "Child primitive edits, reordering and removal invalidate cache; new child 2 becomes height driver",
+    "Opening a legacy saved scene automatically updates the default Curve to two knots"
+  ],
+  "unchanged_100_calls_ms": 4.721,
+  "example_points": 623,
+  "example_polygons": 720,
+  "example_quads": 468,
+  "passed": true
+}

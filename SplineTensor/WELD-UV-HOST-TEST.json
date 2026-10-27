@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "closed": true,
+      "points": 804,
+      "polygons": 1132,
+      "uv": true,
+      "cache": true
+    },
+    {
+      "closed": false,
+      "points": 1108,
+      "polygons": 1423,
+      "uv": true,
+      "cache": true
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+STRINGTABLE Osplinemesherblue
+{
+    Osplinemesherblue "Mesher Pro";
+    SMB_PROFILE "Profile";
+    SMB_CIRCLE "Circle";
+    SMB_RECTANGLE "Rectangle";
+    SMB_ROPE "Rope";
+    SMB_CHAIN "Chain";
+    SMB_RADIUS "Radius";
+    SMB_CIRCLE_SEGMENTS "Circle Segments";
+    SMB_WIDTH "Width";
+    SMB_HEIGHT "Height";
+    SMB_FILLET "Fillet Radius";
+    SMB_FILLET_SEGMENTS "Fillet Segments";
+    SMB_DIAMETER "Chain Thickness (Diameter)";
+    SMB_ROTATIONS "Rotations";
+    SMB_STEP "Path Step";
+    SMB_CAPS "Rounded Caps";
+    SMB_STATUS "Status";
+    SMB_WIDTH_CURVE "Width Along Spline";
+    SMB_GAPS_GROUP "Gaps";
+    SMB_GAPS "Gaps";
+    SMB_PIECE_LENGTH "Segment Length";
+    SMB_SPACE_LENGTH "Space Length";
+    SMB_PIECE_TILT_X "Piece Tilt X";
+    SMB_PIECE_TILT_Y "Piece Tilt Y";
+    SMB_RESET_ALL "Reset All";
+    SMB_GAP_MODE "Mode";
+    SMB_INTERVAL "Interval";
+    SMB_COUNT "Count";
+    SMB_PIECE_COUNT "Piece Count";
+}

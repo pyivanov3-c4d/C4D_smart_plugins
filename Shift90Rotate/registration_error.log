@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "C:\Users\Pavel\AppData\Roaming\Maxon\Maxon Cinema 4D 2026_1ABCDC12\plugins\Shift90Rotate\shift90rotate.pyp", line 178, in <module>
+    registered = plugins.RegisterToolPlugin(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Could not initialize global resource for the plugin.

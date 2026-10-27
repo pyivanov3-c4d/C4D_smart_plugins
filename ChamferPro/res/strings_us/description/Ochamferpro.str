@@ -1,0 +1,7 @@
+STRINGTABLE Ochamferpro
+{
+    Ochamferpro "chamferPro";
+    CP_ANGLE "Sharpness Angle (minimum)";
+    CP_RADIUS "Rounding Radius";
+    CP_STATUS "Place splines below chamferPro.";
+}

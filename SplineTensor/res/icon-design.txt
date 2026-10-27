@@ -1,0 +1,1 @@
+Built-in image generation. Thin white circular ring, broad bold #0198FC blue glow, transparent center/background. Front facing, no text. Revised at user request to make white stroke thinner and glow stronger.

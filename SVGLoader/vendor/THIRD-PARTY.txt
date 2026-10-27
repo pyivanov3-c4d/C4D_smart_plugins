@@ -1,0 +1,29 @@
+Local installation dependencies:
+
+Node.js 24.19.0 Windows x64
+https://nodejs.org/
+License: NODE-LICENSE.txt (MIT and bundled third-party notices).
+
+@resvg/resvg-js and @resvg/resvg-js-win32-x64-msvc 2.6.2
+https://github.com/thx/resvg-js
+Downloaded from registry.npmjs.org with SHA-512 integrity verification.
+License: node_modules/@resvg/resvg-js/LICENSE (MPL-2.0).
+
+Potrace 1.16 shared library
+https://potrace.sourceforge.net/
+Source: https://potrace.sourceforge.net/#downloading
+This DLL was copied from the local Inkscape installation.
+License: POTRACE-COPYING.txt (GPL-2.0-or-later).
+
+Legacy dependency only: the vector converter does not load Potrace. These are
+local dependencies, not an assertion of a public redistribution license for
+the combined package. Preserve notices and provide corresponding source when
+required by the relevant licenses if redistributing.
+
+Active vector geometry dependency:
+
+pathkit-wasm 1.0.0 (Google Skia PathKit)
+https://www.npmjs.com/package/pathkit-wasm
+https://github.com/google/skia/tree/main/modules/pathkit
+License: node_modules/pathkit-wasm/LICENSE (BSD-3-Clause).
+The WASM engine performs vector stroke expansion and path Boolean operations.

@@ -1,0 +1,13 @@
+STRINGTABLE Osmartboolean
+{
+    Osmartboolean "smartBoolean";
+    SB_MODE "Mode";
+    SB_UNION "Union (A + others)";
+    SB_SUBTRACT "Subtract (A - others)";
+    SB_INTERSECT "Intersect";
+    SB_WIDTH "Chamfer Width";
+    SB_SUBDIVISION "Chamfer Subdivision";
+    SB_ROUNDNESS "Roundness";
+    SB_POINTS_REMOVE "Points Remove";
+    SB_CONVERT_HIDE "Convert and hide";
+}
