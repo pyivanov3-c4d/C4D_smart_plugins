@@ -1,0 +1,40 @@
+{
+  "passed": true,
+  "checks": [
+    "registration, default 3, resources, cubic crease motion, sharp refined edges, input untouched",
+    "cache reuse does not report calculation; progress closes",
+    "Use Edge Breaks toggle and Phong-tag cache invalidation",
+    "angle thresholds 89/91 degrees and disabled Angle Limit",
+    "direct Phong edge selection changes invalidate cache",
+    "2 iterations; identical viewport/render geometry",
+    "existing SDS weights ignored; Phong is the only crease input",
+    "zero iterations passthrough",
+    "primitive conversion, sharp cube at 40 degrees, UV preservation",
+    "cancellation clears status and automatically retries",
+    "bevel roundness -1/0/1; profile loops 0/1/3/5; closed connected corner topology; UVs; render parity; width zero exact bypass",
+    "curved crease bevel is one connected surface with no new open seams",
+    "Standard renderer produces visible SmartSmooth geometry"
+  ],
+  "version": 2026304,
+  "profile_cross_section_sums": [
+    [
+      185.85786437626905,
+      190.0
+    ],
+    [
+      190.0,
+      190.0
+    ],
+    [
+      190.0,
+      194.14213562373095
+    ]
+  ],
+  "bevel_polygon_counts": [
+    488,
+    600,
+    864,
+    1176
+  ],
+  "render_nonblack_samples": 1379
+}

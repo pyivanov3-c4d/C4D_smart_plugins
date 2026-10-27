@@ -1,0 +1,8 @@
+STRINGTABLE Osmartsmooth
+{
+ Osmartsmooth "SmartSmooth";
+ SS_ITERATIONS "Iterations";
+ SS_WIDTH "Bevel Width";
+ SS_BEVEL_SUB "Bevel Subdivision";
+ SS_ROUNDNESS "Bevel Roundness";
+}

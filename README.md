@@ -8,6 +8,7 @@ Latest locally developed Cinema 4D plugin sources, imported on 2026-10-27.
 - NoiseSpread
 - Shift90Rotate (90° Rotate, including World/Object coordinate mode)
 - smartBoolean 1.0.21
+- SmartSmooth 1.1.0 (Phong-driven subdivision and connected crease bevel)
 - SplineTensor 0.10.0 (experimental XOR masking)
 - SVGLoader (Windows vector edition, bundled runtime dependencies included)
 
@@ -19,5 +20,6 @@ Run host-independent tests with Python 3.11:
 
     python -m unittest discover -s tests -p "test_*.py"
     python -m unittest discover -s SplineTensor/tests -p "test_*.py"
+    python -m unittest discover -s SmartSmooth/tests -p "test_*.py"
 
 Cinema 4D integration checks require the host runtime; see the individual test scripts and SplineTensor/TESTING.md.
