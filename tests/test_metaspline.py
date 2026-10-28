@@ -27,6 +27,91 @@ def run(groups,c=20,f=40,s=0): return g.process(groups,c,f,s,g.WorkBudget(30),re
 def points(paths): return [c[0] for curves,_ in paths for c in curves]
 
 class GeometryTests(unittest.TestCase):
+    def test_viscosity_controls_neck_growth_and_reuses_attraction(self):
+        import metaspline_vector as vector
+        from unittest.mock import patch
+        groups=[[circle(r=200)],[circle(370.5,r=132.4)]]
+        cache={};widths=[]
+        for viscosity in (0.,.25,1.):
+            paths,_=g.process(groups,50,100,.15,g.WorkBudget(30),cache=cache,viscosity=viscosity)
+            self.assertEqual(len(paths),1)
+            ring=[g.cubic(c,j/80) for c in paths[0][0] for j in range(80)]
+            x=(200+370.5-132.4)*.5;hits=[]
+            for a,b in zip(ring,ring[1:]+ring[:1]):
+                if (a[0]>x)!=(b[0]>x):hits.append(a[1]+(x-a[0])*(b[1]-a[1])/(b[0]-a[0]))
+            self.assertTrue(hits)
+            widths.append(max(hits)-min(hits))
+        self.assertGreater(widths[0],widths[1]*1.5)
+        self.assertGreater(widths[1],widths[2]*1.5)
+        with patch.object(vector,'attract',side_effect=AssertionError('Attraction rebuilt')):
+            g.process(groups,50,100,.15,g.WorkBudget(30),cache=cache,viscosity=.6)
+    def test_viscosity_preserves_contact_threshold(self):
+        for viscosity in (0.,.25,1.):
+            paths,_=g.process([[circle()],[circle(120.1)]],20,60,0,g.WorkBudget(30),viscosity=viscosity)
+            self.assertEqual(len(paths),2)
+    def test_neck_starts_tiny_at_default_smooth(self):
+        for gap in (19.99,19.9,19.5):
+            paths=run([[circle(r=45)],[circle(65+gap,r=20)]],c=20,f=60,s=.15)
+            self.assertEqual(len(paths),1)
+            self.assertLess(len(paths[0][0]),80)
+            ring=[g.cubic(c,j/40) for c in paths[0][0] for j in range(40)]
+            x=45+gap*.5;hits=[]
+            for a,b in zip(ring,ring[1:]+ring[:1]):
+                if (a[0]>x)!=(b[0]>x):hits.append(a[1]+(x-a[0])*(b[1]-a[1])/(b[0]-a[0]))
+            self.assertTrue(hits)
+            self.assertLess(max(hits)-min(hits),.7)
+    def test_tiny_smooth_does_not_shift_nonuniform_contour(self):
+        angles=[math.pi*i/100 for i in range(100)]+[math.pi+math.pi*i/10 for i in range(10)]
+        ring=[(50*math.cos(t),50*math.sin(t)) for t in angles]
+        result=g.round_drop(ring,1e-8)
+        for axis in (0,1):
+            self.assertLess(abs(min(p[axis] for p in result)-min(p[axis] for p in ring)),.1)
+            self.assertLess(abs(max(p[axis] for p in result)-max(p[axis] for p in ring)),.1)
+    def test_bulge_thin_neck_thick_neck_sequence(self):
+        widths=[];areas=[]
+        for gap in (20.1,19.9,15.,8.,2.):
+            paths=run([[circle(r=45)],[circle(65+gap,r=20)]],c=20,f=60,s=0)
+            self.assertEqual(len(paths),2 if gap>20 else 1)
+            hits=[];area=0.;x=45+gap*.5
+            for curves,_ in paths:
+                ring=[g.cubic(c,j/40) for c in curves for j in range(40)]
+                area+=abs(g.area([p[:2] for p in ring]))
+                for a,b in zip(ring,ring[1:]+ring[:1]):
+                    if (a[0]>x)!=(b[0]>x):hits.append(a[1]+(x-a[0])*(b[1]-a[1])/(b[0]-a[0]))
+            widths.append(max(hits)-min(hits) if hits else 0.);areas.append(area)
+        self.assertEqual(widths[0],0.)
+        self.assertLess(widths[1],3.)
+        self.assertTrue(all(a<b for a,b in zip(widths[1:],widths[2:])))
+        self.assertLess(abs(areas[1]-areas[0])/areas[0],.01)
+    def test_vector_stages_and_cache(self):
+        import metaspline_vector as vector
+        from unittest.mock import patch
+        cache={};stages=[];groups=[[circle()],[circle(115)],[circle(245)]]
+        result,status=g.process(groups,20,60,0,g.WorkBudget(30),cache=cache,progress=lambda s,p:stages.append(s))
+        self.assertEqual(len(result),2)
+        union=next(i for i,s in enumerate(stages) if 'combining overlapping' in s)
+        bridge=next(i for i,s in enumerate(stages) if s.startswith('Collapse'))
+        fallow=next(i for i,s in enumerate(stages) if s.startswith('Fallow'))
+        self.assertLess(union,fallow);self.assertLess(fallow,bridge)
+        stages.clear()
+        g.process(groups,20,60,0,g.WorkBudget(30),cache=cache,progress=lambda *s:stages.append(s))
+        self.assertEqual(stages,[])
+        with patch.object(vector.Clip,'union',side_effect=AssertionError('Union rebuilt')),patch.object(vector,'attract',side_effect=AssertionError('Fallow rebuilt')):
+            smoothed,_=g.process(groups,20,60,.5,g.WorkBudget(30),cache=cache)
+        self.assertEqual(len(smoothed),2)
+    def test_zero_collapse_attraction_and_no_weld(self):
+        result=run([[circle()],[circle(120)]],c=0,f=100)
+        self.assertEqual(len(result),2)
+        left=min(result,key=lambda path:min(p[0] for p in points([path])))
+        samples=[g.cubic(c,j/20) for c in left[0] for j in range(21)]
+        self.assertGreater(max(p[0] for p in samples),54.)
+    def test_union_then_bridge_three_children(self):
+        result,status=g.process([[circle()],[circle(80)],[circle(195)]],20,0,0,g.WorkBudget(30))
+        self.assertEqual(len(result),1)
+        self.assertIn('1 bridges',status)
+    def test_work_budget_interrupts(self):
+        with self.assertRaises(g.EvaluationStopped):
+            g.process([[circle()],[circle(110)]],20,40,0,g.WorkBudget(-1))
     def test_bezier_reconstruction_accuracy_and_sparse_knots(self):
         ring=[(50*math.cos(i*math.tau/600),50*math.sin(i*math.tau/600),0.) for i in range(600)]
         curves=g.fit_closed(ring,.1)
@@ -64,29 +149,6 @@ class GeometryTests(unittest.TestCase):
         self.assertAlmostEqual(abs(g.area(out))/abs(g.area(ring)),1.,places=7)
         radii=[g.length(p) for p in out]
         self.assertLess(max(radii)-min(radii),1e-6)
-    def test_inverse_square_fallow_is_concentrated_near_collapse(self):
-        near=-g.liquid(0,22,20,40)
-        far=-g.liquid(0,50,20,40)
-        self.assertGreater(near,far)
-        self.assertGreater(g.liquid(11,11,20,40),0)
-    def test_large_fallow_approaches_collapse_without_crossing(self):
-        gap=40.
-        previous=float('inf')
-        for fallow in (25.,100.,1000.,100000.):
-            midpoint=g.liquid(gap/2,gap/2,20.,fallow)
-            self.assertGreater(midpoint,0.)
-            self.assertLess(midpoint,previous)
-            previous=midpoint
-        self.assertLess(previous,.01)
-    def test_fallow_100_has_visible_boundary_travel(self):
-        gap=60.; collapse=20.; fallow=100.
-        t=(gap-collapse)/fallow
-        t=t*t*(3.-2.*t)
-        weight=(1/(1+t)**2-.25)/.75
-        weight=1.-(1.-weight)**2
-        travel=gap*weight/2
-        self.assertGreater(travel,10.)
-        self.assertAlmostEqual(g.liquid(travel,gap-travel,collapse,fallow),0.,places=9)
     def test_large_fallow_unequal_outlines_remain_visible(self):
         groups=[[circle(0,30,35)],[circle(185,-25,90)]]
         result=run(groups,c=20,f=300,s=0)
@@ -94,13 +156,6 @@ class GeometryTests(unittest.TestCase):
         small=min(result,key=lambda path:max(p[0] for p in points([path])))
         sampled=[g.cubic(c,j/20) for c in small[0] for j in range(21)]
         self.assertGreater(max(p[0] for p in sampled),50.)
-    def test_smooth_reuses_field_and_contours(self):
-        from unittest.mock import patch
-        cache={}; groups=[[circle()],[circle(115)]]
-        g.process(groups,20,40,0,g.WorkBudget(30),cache=cache)
-        with patch.object(g,'signed_field',side_effect=AssertionError('field rebuilt')),patch.object(g,'contours',side_effect=AssertionError('contours rebuilt')):
-            result,status=g.process(groups,20,40,.5,g.WorkBudget(30),cache=cache)
-        self.assertTrue(result)
     def test_outside_preserved(self):
         a,b=circle(),circle(180)
         self.assertEqual(run([[a],[b]]),[a,b])
@@ -125,9 +180,6 @@ class GeometryTests(unittest.TestCase):
         result=run(groups)
         self.assertEqual(len(result),1)
         self.assertTrue(all(abs(p[1]*.6-p[2]*.8)<1e-8 for p in points(result)))
-    def test_zero_collapse_still_attracts(self):
-        self.assertLess(g.liquid(0,20,0,40),0)
-        self.assertGreater(g.liquid(10,10,0,40),0)
     def test_nonplanar_retained(self):
         a=circle(); b=([tuple((p[0],p[1],10) for p in c) for c in circle(110)[0]],True)
         self.assertEqual(run([[a],[b]]),[a,b])
@@ -140,13 +192,5 @@ class GeometryTests(unittest.TestCase):
         # Multiple child letters exercise liquid joining of original font cubics.
         result=run([[fixture[0]],[fixture[1]]],5,10)
         self.assertTrue(result)
-    def test_field_transition_continuous(self):
-        for threshold in (20.,60.):
-            a=g.liquid(threshold/2-1e-6,threshold/2-1e-6,20,40)
-            b=g.liquid(threshold/2+1e-6,threshold/2+1e-6,20,40)
-            self.assertLess(abs(a-b),1e-4)
-    def test_work_limit_retains_closed_geometry(self):
-        paths,status=g.process([[circle()],[circle(110)]],20,40,0,g.WorkBudget(-1))
-        self.assertEqual(len(paths),2)
 
 if __name__=='__main__': unittest.main()

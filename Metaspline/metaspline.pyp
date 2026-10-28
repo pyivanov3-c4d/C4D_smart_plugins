@@ -10,11 +10,12 @@ from c4d import plugins, bitmaps, utils
 ROOT = os.path.dirname(__file__)
 if ROOT not in sys.path: sys.path.insert(0, ROOT)
 import metaspline_geometry as geo
+import metaspline_progress as progress_ui
 
 PLUGIN_ID = 1069991  # Local installation ID; register before redistribution.
-COLLAPSE, FALLOW, SMOOTH, STATUS = 11000, 11001, 11002, 11003
+COLLAPSE, FALLOW, SMOOTH, STATUS, VISCOSITY = 11000, 11001, 11002, 11003, 11004
 MAX_CURVES = 100000
-VERSION = '1.0.6'
+VERSION = '2.2.1'
 
 
 def xyz(v): return (v.x, v.y, v.z)
@@ -140,11 +141,14 @@ def evaluated_groups(op):
 
 class Metaspline(plugins.ObjectData):
     def Init(self, op, isCloneInit=False):
-        for key in (COLLAPSE,FALLOW,SMOOTH): self.InitAttr(op,float,[key])
+        for key in (COLLAPSE,FALLOW,SMOOTH,VISCOSITY): self.InitAttr(op,float,[key])
         if not isCloneInit: op[COLLAPSE],op[FALLOW],op[SMOOTH]=20.,40.,.15
+        if not isCloneInit or op[VISCOSITY] is None:op[VISCOSITY]=.25
         self.status='Place closed splines below Metaspline.'
         self.signature=None
         self._evaluation=threading.local()
+        self._result_lock=threading.RLock()
+        self._result_cache=None
         return True
 
     def CheckDirty(self,op,doc):
@@ -170,6 +174,13 @@ class Metaspline(plugins.ObjectData):
             smooth_bc[c4d.DESC_MINSLIDER]=0.
             smooth_bc[c4d.DESC_MAXSLIDER]=1.
             smooth_bc[c4d.DESC_STEP]=.01
+        viscosity_bc=description.GetParameterI(c4d.DescID(VISCOSITY))
+        if viscosity_bc is not None:
+            viscosity_bc[c4d.DESC_MIN]=0.
+            viscosity_bc[c4d.DESC_MAX]=1.
+            viscosity_bc[c4d.DESC_MINSLIDER]=0.
+            viscosity_bc[c4d.DESC_MAXSLIDER]=1.
+            viscosity_bc[c4d.DESC_STEP]=.01
         bc=description.GetParameterI(c4d.DescID(STATUS))
         if bc is not None: bc[c4d.DESC_NAME]=VERSION+' | '+getattr(self,'status','')
         return True,flags | c4d.DESCFLAGS_DESC_LOADED
@@ -177,7 +188,9 @@ class Metaspline(plugins.ObjectData):
     def build(self,op,bt=None):
         groups=[]; skipped=0
         cancel=bt.TestBreak if bt else None
+        job=progress_ui.Progress(bt)
         try:
+            job.stage('Reading closed child splines')
             # Each top-level child gets an independent read budget.
             node=op.GetDown()
             count=0
@@ -187,6 +200,9 @@ class Metaspline(plugins.ObjectData):
                 try:
                     collect_one(node,c4d.Matrix(),child_groups,geo.WorkBudget(.6,cancel),(op,))
                     groups.extend(child_groups)
+                except geo.EvaluationStopped:
+                    if cancel and cancel():raise progress_ui.Cancelled()
+                    skipped+=1
                 except Exception as error:
                     skipped+=1; print('Metaspline skipped child: '+str(error))
                 node=node.GetNext(); count+=1
@@ -196,14 +212,20 @@ class Metaspline(plugins.ObjectData):
                 return make_spline(originals)
             try:
                 if not hasattr(self._evaluation,'geometry_cache'): self._evaluation.geometry_cache={}
-                result,self.status=geo.process(groups,max(0.,float(op[COLLAPSE])),max(0.,float(op[FALLOW])),max(0.,min(1.,float(op[SMOOTH]))),geo.WorkBudget(6.,cancel),cache=self._evaluation.geometry_cache)
+                viscosity=.25 if op[VISCOSITY] is None else max(0.,min(1.,float(op[VISCOSITY])))
+                result,self.status=geo.process(groups,max(0.,float(op[COLLAPSE])),max(0.,float(op[FALLOW])),max(0.,min(1.,float(op[SMOOTH]))),geo.WorkBudget(6.,cancel),cache=self._evaluation.geometry_cache,progress=job.stage,viscosity=viscosity)
             except geo.EvaluationStopped as error:
                 result=originals; self.status=str(error)+'; closed originals retained'
             if skipped: self.status+=' | {} child reads skipped'.format(skipped)
             return make_spline(result)
+        except progress_ui.Cancelled:
+            self.status='Cancelled; closed originals retained'
+            return make_spline(locals().get('originals',[]))
         except Exception as error:
             self.status=str(error); traceback.print_exc()
             return make_spline(locals().get('originals',[]))
+        finally:
+            job.close()
 
     def evaluate(self,op,hh=None,bt=None):
         state=getattr(self,'_evaluation',None)
@@ -214,7 +236,25 @@ class Metaspline(plugins.ObjectData):
             if hh is not None and op.GetDown() is not None:
                 hierarchy=op.GetAndCheckHierarchyClone(hh,op.GetDown(),c4d.HIERARCHYCLONEFLAGS_ASSPLINE,True)
                 if hierarchy and not hierarchy['dirty']: return hierarchy['clone']
-            return self.build(op,bt)
+            def source_signature():
+                doc=op.GetDocument() if hasattr(op,'GetDocument') else None
+                signature=[op[COLLAPSE],op[FALLOW],op[SMOOTH],op[VISCOSITY],doc.GetTime().Get() if doc else 0.]
+                def fingerprint(node,depth=0):
+                    while node and depth<64 and len(signature)<10000:
+                        signature.append((node,node.GetDirty(c4d.DIRTYFLAGS_DATA | c4d.DIRTYFLAGS_MATRIX | c4d.DIRTYFLAGS_CHILDREN)))
+                        fingerprint(node.GetDown(),depth+1);node=node.GetNext()
+                fingerprint(op.GetDown())
+                return tuple(signature)
+            signature=source_signature()
+            # GetContour and GVO can run on different host threads. Share only
+            # cloned output; mutable intermediate geometry stays thread-local.
+            with self._result_lock:
+                cached=self._result_cache
+                if cached is not None and cached[0]==signature:return cached[1].GetClone()
+            result=self.build(op,bt)
+            if hasattr(result,'GetClone') and not any(word in self.status.lower() for word in ('cancel','limit','retained','skipped')):
+                with self._result_lock:self._result_cache=(source_signature(),result.GetClone())
+            return result
         finally: state.active=False
 
     def GetVirtualObjects(self,op,hh): return self.evaluate(op,hh=hh)
@@ -240,6 +280,8 @@ def collect_one(node,parent_matrix,groups,check,ancestors):
 
 
 if __name__=='__main__':
+    if not progress_ui.register_progress():
+        raise RuntimeError('Metaspline progress registration failed: plugin ID conflict.')
     icon=bitmaps.BaseBitmap()
     if icon.InitWith(os.path.join(ROOT,'res','icon.png'))[0]!=c4d.IMAGERESULT_OK: icon=None
     if not plugins.RegisterObjectPlugin(PLUGIN_ID,'Metaspline',Metaspline,'Ometaspline',c4d.OBJECT_GENERATOR | c4d.OBJECT_INPUT | c4d.OBJECT_ISSPLINE,icon):

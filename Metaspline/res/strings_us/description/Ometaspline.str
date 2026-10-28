@@ -3,6 +3,7 @@ STRINGTABLE Ometaspline
     Ometaspline "Metaspline";
     MS_COLLAPSE "Collapse Distance";
     MS_FALLOW "Fallow Distance";
+    MS_VISCOSITY "Viscosity";
     MS_SMOOTH "Smooth";
     MS_STATUS "Place closed splines below Metaspline.";
 }

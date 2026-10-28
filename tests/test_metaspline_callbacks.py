@@ -33,6 +33,9 @@ fake.plugins = types.SimpleNamespace(ObjectData=ObjectData)
 fake.bitmaps = types.SimpleNamespace()
 fake.utils = types.SimpleNamespace(SendModelingCommand=Mock(side_effect=AssertionError('Nested modeling command')))
 fake.documents = types.SimpleNamespace(BaseDocument=Mock(side_effect=AssertionError('Nested document evaluation')))
+fake.threading=types.SimpleNamespace(GeIsMainThread=lambda:True)
+fake.gui=types.SimpleNamespace(StatusClear=Mock(),StatusSetText=Mock(),StatusSetBar=Mock(),StatusSetSpin=Mock())
+fake.SpecialEventAdd=Mock()
 fake.Matrix = Matrix
 fake.OBJECT_ISSPLINE, fake.Ospline, fake.Oline = 1, 5101, 5137
 fake.DIRTYFLAGS_DATA, fake.DIRTYFLAGS_MATRIX, fake.DIRTYFLAGS_CACHE, fake.DIRTYFLAGS_CHILDREN = 1,2,4,8
@@ -67,6 +70,23 @@ class Node(dict):
 
 
 class CallbackTests(unittest.TestCase):
+    def test_cached_contour_has_no_progress_work(self):
+        class Cached:
+            def GetClone(self): return self
+        cached=Cached()
+        with patch.object(self.plugin,'build',return_value=cached) as build:
+            self.assertIs(self.plugin.evaluate(self.op),cached)
+            self.assertIs(self.plugin.evaluate(self.op),cached)
+            self.assertEqual(build.call_count,1)
+            self.op[11002]=.8
+            self.plugin.evaluate(self.op)
+            self.assertEqual(build.call_count,2)
+    def test_progress_clears_on_collection_cancel(self):
+        progress=namespace['progress_ui']
+        with patch.dict(namespace,{'make_spline':lambda paths:paths}):
+            self.plugin.build(self.op,types.SimpleNamespace(TestBreak=lambda:True))
+        self.assertFalse(progress._jobs)
+        self.assertIn('Cancelled',self.plugin.status)
     def test_percent_description_allows_full_rounding(self):
         bc={'max':.01,'slidermax':.01}
         desc=types.SimpleNamespace(LoadDescription=lambda kind:True,GetParameterI=lambda ident:bc if ident==11002 else None)

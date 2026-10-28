@@ -1,0 +1,14 @@
+{
+  "library": "pyclipper",
+  "version": "1.4.0",
+  "upstream": "https://github.com/fonttools/pyclipper",
+  "engine": "Clipper 6.4.2 by Angus Johnson",
+  "licenses": [
+    "MIT (per-wheel licenses/LICENSE)",
+    "Boost Software License 1.0 (BOOST_LICENSE_1_0.txt)"
+  ],
+  "wheels": {
+    "pyclipper-1.4.0-cp311-cp311-win_amd64.whl": "e9b973467d9c5fa9bc30bb6ac95f9f4d7c3d9fc25f6cf2d1cc972088e5955c01",
+    "pyclipper-1.4.0-cp312-cp312-win_amd64.whl": "d1e5498d883b706a4ce636247f0d830c6eb34a25b843a1b78e2c969754ca9037"
+  }
+}

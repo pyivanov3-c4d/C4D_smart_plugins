@@ -1,65 +1,75 @@
-# Metaspline 1.0.6
+# Metaspline 2.2.1
 
-Cinema 4D 2026 Python spline generator. No external Python packages required.
+Cinema 4D 2026 spline generator for Windows x64. Place closed spline children below Metaspline. Open contours are skipped. Exactly four editable controls are provided; a read-only line reports the result and version.
 
-Place closed spline objects under Metaspline. Open contours are skipped. Null hierarchies and native spline generators such as Text are read through their evaluated spline/cache. The Object tab has exactly three editable controls; the last line is read-only status.
+## Vector pipeline
 
-- **Collapse Distance** (default 20): closed shapes separated by less than this distance form a liquid bridge. Overlapping shapes are united even at zero Collapse Distance.
-- **Fallow Distance** (default 40): additional attraction range beyond Collapse Distance, using inverse-square attenuation so larger Fallow values pull the outlines progressively closer to collapse. The spelling is intentional. Shapes in this range bend toward each other while remaining separate, within sampling tolerance.
-- **Smooth** (default 15%): liquid rounding, from 0% to 100%. Area-preserving diffusion and a smooth transition to a circular equilibrium make each connected contour progressively become a rounded drop. At 100% each contour becomes circular. Small details are removed as the value increases. One valid child only receives this smoothing; its liquid interactions are disabled. At 0% its original cubic curves are retained.
+1. Union overlapping closed shapes, respecting holes within each source.
+2. **Fallow Distance:** within Collapse + Fallow, form smooth bulges on the facing sides. Increasing Fallow increases the pull. The shapes stay separate while their original gap is above Collapse Distance.
+3. **Collapse Distance:** when the original gap passes below this threshold, join those same shoulders with a thin hourglass neck. The neck grows thicker and its shoulders become smoother as the gap closes. Collapse remains a total gap threshold, consistent with 1.x.
+4. **Viscosity (0-100%):** lower values thicken the neck sooner; higher values keep it narrow longer as the source gap decreases. Collapse still determines when contact starts. This controls geometric progression, not time-based simulation.
+5. **Smooth (0-100%):** overall area-preserving rounding toward a circular drop for each connected contour. With one valid child, only smoothing operates; at 0% its native cubic controls remain unchanged.
+6. Fit sparse cubic Bezier contours into one globally closed native SplineObject for downstream generators.
 
-Output is one native, globally closed Bezier SplineObject with one or more closed segments. Field-generated sections use adaptive least-squares Bezier reconstruction with shared smooth knot tangents; isolated original contours keep their native Bezier handles at Smooth=0. This geometry is intended for Extrude, Sweep, Loft and other spline consumers. Live downstream compatibility still needs confirmation after C4D restart.
+Defaults: Collapse 20, Fallow 40, Viscosity 25%, Smooth 15%. The spelling Fallow is intentional. Distances use scene units. Percent displays 0-100% and stores normalized 0..1.
 
-## Geometric limits
+There is no bitmap, raster distance field, marching-squares tracing or grid-size threshold. Native Clipper performs vector polygon unions. Curved inputs are adaptively tessellated for polygon operations, then fitted back to Bezier curves. These are approximate vector booleans, not analytic cubic intersections.
 
-This is a planar distance-field generator, not an exact CAD boolean or a 3D fluid simulation. Inputs can share any rotated plane. Non-coplanar inputs receive smoothing only; status explains this fallback. All retained control points must lie within 0.01% of the scene extent of the common plane.
+## Progress and caching
 
-Interacting shapes are sampled on a grid with approximately 320 cells across each connected cluster's largest dimension. Read-only status reports the grid spacing. Expect roughly one to two cells of positional/threshold uncertainty. Tiny holes, narrow gaps and features below that size may disappear; an infinitesimal bridge at the collapse threshold cannot be guaranteed. A mandatory filter of approximately two grid cells removes stair steps before Bezier fitting, including at Smooth=0. Fitting targets 0.65 grid-cell residual at the sampled contour points; this is not a strict global Hausdorff bound. Knot counts adapt to outline complexity. For widely different scales, use separate Metaspline objects.
+Calculations report their stage in Cinema 4D's bottom-left status bar: percentages for measurable work, busy indication during child acquisition. Workers queue updates; only a main-thread message plugin touches the UI. Completion, errors and cancellation clear the job. Cached results leave status untouched. Union, bridge, fallow and final-result caches avoid repeating unaffected stages.
 
-Nested contours within each source use even-odd filling, preserving holes. Distinct outer islands interact. The two nearest islands determine the liquid field at each point; complex three-way junctions are an approximation and can have seams. Smooth approximately preserves each contour's planar area. It rounds each output contour independently; disconnected shapes are not forcibly united by Smooth. Holes are rounded independently too, so high values can change hole clearance or produce overlaps. Cubic fitting introduces small additional area error. Outside the influence range, isolated contours are retained exactly at Smooth=0; remote portions of an interacting contour have grid approximation error.
+## Limits
 
-Geometry processing has a six-second cooperative budget, a 24-island interacting-cluster cap, 350,000 grid-cell cap and 100,000 input-span cap. Completed clusters remain available when later work runs out; unprocessed clusters retain closed originals. Each top-level child read gets a separate 0.6-second cooperative budget. A native C4D evaluation call itself cannot be interrupted from Python. Errors are reported in the status line or Console.
+- Inputs must share a plane, including rotated planes. Non-coplanar inputs receive only overall smoothing.
+- Tessellation tolerance is approximately extent/8000; fitting targets four times this tolerance at its samples. Tiny details can be lost. This is not a strict global Hausdorff bound.
+- One closest rounded bridge is added per eligible pair of disconnected outer shapes. Multiple separate contacts between the same pair are not all bridged. Holes stay with their outer shape; bridge decisions use outer boundaries.
+- Fallow moves facing outer regions, not holes. Smooth rounds holes independently and can change their clearance. Extreme configurations can still self-intersect after fitting or global rounding.
+- A six-second cooperative budget, span limit and 96-island limit bound the work. Native clipping calls cannot be interrupted midway. Work limits retain closed originals; failed child reads do not discard siblings. Native child evaluation cannot be interrupted from Python.
+- Native dependencies are bundled for Windows x64 CPython 3.11 (C4D 2026) and 3.12 (offline tests). Other platforms need matching binaries.
 
 ## Installation
 
-Copy the whole `Metaspline` folder into the Cinema 4D user plugins folder and restart Cinema 4D. Create **Metaspline** through Commander (Shift+C). Local plugin ID: **1069991**; obtain an official unique Maxon ID before public redistribution.
+Copy the complete Metaspline folder into the C4D plugins folder and restart. Create Metaspline with Commander (Shift+C).
 
-Installed target for this workstation:
-`C:/Users/Pavel/AppData/Roaming/Maxon/Maxon Cinema 4D 2026_1ABCDC12/plugins/Metaspline`
+Workstation target: `C:/Users/Pavel/AppData/Roaming/Maxon/Maxon Cinema 4D 2026_1ABCDC12/plugins/Metaspline`.
 
-The icon is an outlined pair of diagonally merged circles with unequal radii, #0198FC (RGB 1,152,252), on transparent background. The editable SVG and 512px PNG are in `res`.
+Local IDs: generator 1069991; progress message plugin 1070002. Register official IDs before public redistribution. The transparent blue merged-circle icon is unchanged.
+
+## Dependencies
+
+Bundled pyclipper 1.4.0 wraps Clipper 6.4.2. No pip installation is needed. A private package name avoids interfering with other plugins. MIT and Boost licenses and wheel SHA-256 provenance are in `vendor`. [Upstream](https://github.com/fonttools/pyclipper).
 
 ## Validation
 
-Offline tests are in `tests/test_metaspline.py` and `tests/test_metaspline_callbacks.py` in the project. They cover original cubic circles and font contours, overlaps, collapse/fallow behavior, holes, open inputs, rotated planes, non-planar fallback, finite closed output, budgets, native handle conversion, global multi-contour closure, native Text evaluation, cache dirty handling and callback reentry. Stub tests verify callback logic, not host ABI compatibility.
+Tests cover original cubic circles/font outlines, union, bridges, stage ordering, holes, open inputs, unequal shapes, rotated planes, percentage bounds, sparse fitting, native handles, closure, caches, cancellation and main-thread progress.
 
-The C4D bridge was unavailable (connection refused) during installation. Registration, interactive performance, child hiding, animated updates and Extrude/Sweep behavior have **not** been live-tested. After restart: create two closed Circle children, move their separation across Collapse and Collapse+Fallow; test an open Arc, a Text spline with counters, a single closed spline, and Metaspline under Extrude. No document was opened through the bridge, and no bridge Python execution was used.
+Run: `python -m unittest discover -s tests -p "test_metaspline*.py" -v`.
 
-The adapter follows the project's proven native spline convention: read C4D Bezier handles at 4/3 and write at 3/4. No Current State to Object, temporary document evaluation or document opening occurs in generator callbacks. Both spline callbacks are provided, consistent with Maxon's spline-generator example:
-https://github.com/Maxon-Computer/Cinema-4D-Python-API-Examples/blob/master/plugins/py-osffset_y_spline_r16/py-osffset_y_spline_r16.pyp
+Native host check: `tests/metaspline_host_check.py`, run with c4dpy in a separate process. No bridge scene opening or document evaluation inside a generator callback is used.
 
-## 1.0.1 changes
+Offline median times (three runs): union 0.615 to 0.011 s; bridge 0.768 to 0.020 s; fallow 0.706 to 0.248 s; unequal outlines 1.080 to 0.201 s. Cached Smooth edit: 0.053 s. Fixture timings do not guarantee arbitrary-scene performance.
 
-Dense field polylines are reconstructed as sparse cubic Bezier spans. Smoothed single-child contours also use cubic fitting. Smooth remains a normalized 0..1 C4D percentage parameter displayed as 0–100%; its smoothing radius is multiplied by ten. Existing saved Smooth values therefore produce stronger smoothing. Offline regressions: 25 tests, including reconstruction accuracy, knot tangent continuity and point-count reduction.
 
-## 1.0.2 changes
+## 2.1.0: progressive liquid neck
 
-Smooth now applies area-preserving drop rounding with circular equilibrium at 100%, rather than shrink-only relaxation. Fallow attraction uses squared smooth proximity. One boundary-distance transform replaces separate inside/outside transforms, within the existing grid tolerance. Linear-time sliding filters replace convolution, per-cell sorting is removed, and per-generator/per-thread caches retain distance fields and up to four contour results for fast Smooth edits. Field caching is capped at 500,000 cells. Cache keys include source geometry, grid geometry, Collapse and Fallow as appropriate.
+Facing shoulders are formed before contact and retained when the topology joins. A four-cubic hourglass neck replaces the abrupt capsule: a narrow neck first appears just inside Collapse Distance, then grows with 1-gap/Collapse. Concave shoulders are progressively rounded as the shapes approach, with this rounding retained after the original shapes overlap. No extra controls are added. Smooth remains overall rounding; the bulge/neck/merge progression works even at Smooth=0. Nearest-edge queries now use a bounding-box tree.
 
-28 offline tests pass. Two-circle benchmark: fresh Smooth=15% evaluation improved from 0.993 s to 0.703 s (new measurement is the median of three runs); cached Smooth edit took 0.071 s. These are standalone Python timings, not live C4D measurements.
+The sequence preview holds Collapse=20, Fallow=60 and Smooth=0 fixed while reducing the source gap from 100 to 35, 19.5, 8 and -5. Regression checks confirm separate contours before contact, a narrow joined neck, increasing neck thickness, and less than 1% area change across the contact threshold for this fixture. These are vector approximations, not a physical fluid simulation.
 
-## 1.0.3: percentage range correction
 
-Live C4D inspection confirmed the old resource MAX 1 was parsed as runtime 0.01 (1%), preventing the Smooth control from reaching 100%. The resource now uses display-percent MAX 100 and STEP 1; GetDDescription explicitly sets normalized runtime field and slider bounds to 0..1 and step 0.01. Existing scene values are retained. After restart, increase Smooth to 100% to reach the round equilibrium. 29 offline tests pass; a callback regression verifies correction of a stale 1% maximum.
+## 2.1.1: tiny bridge onset
 
-## 1.0.4: inverse-square Fallow
+Bridge half-width now grows with penetration depth to the power 2.5, with a much smaller numerical floor. Shoulder rounding ramps in cubically. Fitting precision is tightened only near the throat; body curves keep the normal tolerance. Overall smoothing is delayed around a newly forming bridge so it does not immediately thicken it; Smooth=100% still selects a round drop. A separate rounding bug was fixed: the reference center now uses equal arc-length samples instead of an uneven vertex mean, preventing jumps at very small Smooth values.
 
-Within the influence band, t=(gap-Collapse)/Fallow and attraction weight=(1/(1+t)^2-1/4)/(3/4). Weight is one at Collapse and zero at the outer boundary. The attraction amplitude now scales with the local gap, so large Fallow values approach collapse instead of saturating at a weak pull limited by Collapse Distance. The analytic field remains separate above Collapse; sub-grid gaps can still disappear at extreme values. 30 offline tests pass, including increasing Fallow from 25 to 100, 1000 and 100000 for a fixed gap.
+39 offline tests pass. With radii 45 and 20, Collapse=20, Fallow=60, Smooth=15%, the fixture has a single initial connection approximately 0.3-0.4 units wide at gaps 19.99-19.5, compared with a 90-unit main diameter. The fit is still approximate; arbitrarily thin geometry is bounded by vector tolerance.
 
-## 1.0.5: stronger facing-side attraction
 
-The inverse-square proximity is calibrated to contour travel rather than field blend strength. Locally parallel facing boundaries move approximately weight times half the gap. Smoothed distance gradients restrict attraction to facing sides, with continuous blending near Collapse. This gives more visible bulging at large Fallow without inflating the backs. Sub-cell contour artifacts below one quarter grid-cell area are discarded. 32 offline tests pass, including unequal radii and large Fallow=300. Existing grid tolerance still applies; live C4D verification requires restart.
+## 2.2.0: adjustable viscosity
 
-## 1.0.6: near-bridge attraction
+Viscosity defaults to 25%. Its 0-100% range adjusts the growth exponent from 1 to 4, together with shoulder rounding and smoothing maturity. Lower values reveal a neck sooner after contact; higher values retain the thin kissing connection longer. Contact onset is unchanged. Viscosity edits reuse the input union and facing attraction. 41 offline regression tests cover growth, contact onset, caching and existing geometry behavior.
 
-The remaining separation is squared: attraction w becomes 1-(1-w)^2. Thus 50% attraction becomes 75%, and 80% becomes 96%. To avoid grid-induced welds above Collapse Distance, the attraction keeps a minimum target slit of 2.5 grid cells. Tiny traced loops below two grid-cell areas are suppressed; very small intentional holes are also below this limit. 32 offline tests pass. Restart C4D to load the update.
+
+## 2.2.1: fourfold viscosity response in both directions
+
+The 0-100% slider now amplifies the viscosity response fourfold in logarithmic space around the unchanged 25% reference. Lower settings grow and round bridges faster; higher settings retain narrow necks longer. Growth and shoulder exponents remain positive, and Collapse still determines onset. The multiplier applies to response sensitivity, not a literal fourfold neck width.
