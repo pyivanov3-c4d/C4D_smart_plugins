@@ -1,0 +1,26 @@
+{
+  "version": 2027000,
+  "checks": [
+    "plugin registration",
+    "resources, defaults and native World Noise",
+    "visible first surface and complete instance bounds",
+    "evaluated primitive source, render-instance links, normal alignment",
+    "native Noise variation and radius clearance",
+    "native Noise global scale changes placement",
+    "named polygon selection and missing-selection rejection",
+    "demo scene saved",
+    "standard render",
+    "source scale, mixed sources, translated surface, native curved surface",
+    "user scene: visible surface, 95 instances, bounds include their radii"
+  ],
+  "uniform_count": 114,
+  "noise_count": 111,
+  "scale_range": [
+    0.7478045415309398,
+    1.2679878650032523
+  ],
+  "render_result": 0,
+  "nonblack_pixels": 7015,
+  "curved_count": 134,
+  "passed": true
+}

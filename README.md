@@ -5,7 +5,7 @@ Latest locally developed Cinema 4D plugin sources, imported on 2026-10-27.
 - ChamferPro
 - MesherPro
 - Metaspline
-- NoiseSpread
+- NoiseSpread 1.0.3 (status-bar progress and optimized surface packing)
 - Shift90Rotate (90° Rotate, including World/Object coordinate mode)
 - smartBoolean 1.0.21
 - SmartSmooth 1.1.0 (Phong-driven subdivision and connected crease bevel)

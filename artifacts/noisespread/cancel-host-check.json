@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "checks": [
+    "packing cancellation leaves cache invalid; next pass recovers automatically",
+    "instance-build cancellation leaves cache invalid; next pass recovers automatically",
+    "cancel/complete clear progress; warmed cache starts no UI job",
+    "latest user scene generates stable instances with the first surface visible"
+  ],
+  "scene_instances": 183,
+  "evaluation_seconds": 0.637
+}

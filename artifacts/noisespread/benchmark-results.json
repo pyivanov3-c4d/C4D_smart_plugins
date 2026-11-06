@@ -1,0 +1,26 @@
+[
+  {
+    "case": "flat_uniform",
+    "instances": 177,
+    "before_seconds": 0.3946,
+    "after_seconds": 0.2182,
+    "speedup": 1.81,
+    "max_position_difference": 0.0
+  },
+  {
+    "case": "curved_uniform",
+    "instances": 246,
+    "before_seconds": 2.1014,
+    "after_seconds": 0.854,
+    "speedup": 2.46,
+    "max_position_difference": 0.0
+  },
+  {
+    "case": "curved_noise",
+    "instances": 338,
+    "before_seconds": 27.9235,
+    "after_seconds": 9.6747,
+    "speedup": 2.89,
+    "max_position_difference": 0.0
+  }
+]

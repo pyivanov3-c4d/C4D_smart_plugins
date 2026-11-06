@@ -1,4 +1,4 @@
-"""NoiseSpread 1.0.2 — dense surface render-instance generator, Cinema 4D 2026."""
+"""NoiseSpread 1.0.3 — dense surface render-instance generator, Cinema 4D 2027."""
 import math
 import os
 import sys
@@ -11,10 +11,11 @@ from c4d.modules import render
 ROOT=os.path.dirname(__file__)
 if ROOT not in sys.path: sys.path.insert(0,ROOT)
 import noisespread_geometry as geo
+import noisespread_progress as progress_ui
 
 PLUGIN_ID=1069993  # Local ID. Obtain a Maxon ID before public redistribution.
 SIZE,FEATHER,NOISE,SELECTION,SEED,LIMIT,STATUS=11000,11001,11002,11003,11004,11005,11006
-VERSION='1.0.2'
+VERSION='1.0.3'
 
 def xyz(v): return v.x,v.y,v.z
 def vec(p): return c4d.Vector(*p)
@@ -34,9 +35,10 @@ def meshes(node,parent,depth=0):
         yield from meshes(child,matrix,depth+1)
         child=child.GetNext()
 
-def read_surface(node,selection):
+def read_surface(node,selection,job=None):
     triangles=[]; payloads=[]; matched=False; point_count=0
     for mesh,matrix in meshes(node,c4d.Matrix()):
+        if job: job.stage('Reading surface polygons')
         points=mesh.GetAllPoints(); point_count+=len(points)
         if point_count>300000: raise ValueError('Surface exceeds 300,000 points; reduce subdivisions')
         chosen=None
@@ -47,18 +49,21 @@ def read_surface(node,selection):
                     chosen.Merge(tag.GetBaseSelect()); matched=True
         uvtag=mesh.GetTag(c4d.Tuvw)
         transformed=[xyz(matrix*p) for p in points]
-        for i,poly in enumerate(mesh.GetAllPolygons()):
+        polygons=mesh.GetAllPolygons()
+        inverse=~matrix
+        for i,poly in enumerate(polygons):
+            if job and i%512==0: job.count(i,len(polygons),'Reading surface polygons')
             if chosen is not None and not chosen.IsSelected(i): continue
             uv=uvtag.GetSlow(i) if uvtag else None
             indices=(poly.a,poly.b,poly.c,poly.d)
             for corners in ((0,1,2),) if poly.c==poly.d else ((0,1,2),(0,2,3)):
                 triangles.append(tuple(transformed[indices[j]] for j in corners))
-                payloads.append((~matrix,tuple(xyz(uv['abcd'[j]]) for j in corners) if uv else None))
+                payloads.append((inverse,tuple(xyz(uv['abcd'[j]]) for j in corners) if uv else None))
                 if len(triangles)>300000: raise ValueError('Surface exceeds 300,000 triangles')
     if selection and not matched: raise ValueError('Polygon selection not found: '+selection)
-    return geo.Surface(triangles,payloads)
+    return geo.Surface(triangles,payloads,progress=job.stage if job else None)
 
-def source_radius(evaluated,scale,with_extent=False):
+def source_radius(evaluated,scale,with_extent=False,job=None):
     """Exact disk about +Y for evaluated vertices, including off-center axes."""
     radius=0.; extent=0.; count=0
     # Root rotation and position are intentionally replaced by surface alignment.
@@ -66,6 +71,7 @@ def source_radius(evaluated,scale,with_extent=False):
     for mesh,matrix in meshes(evaluated,root):
         for point in mesh.GetAllPoints():
             p=matrix*point
+            if job and count%1024==0: job.stage('Measuring source footprints')
             radius=max(radius,math.hypot(p.x*scale.x,p.z*scale.z)); count+=1
             extent=max(extent,math.sqrt((p.x*scale.x)**2+(p.y*scale.y)**2+(p.z*scale.z)**2))
             if count>300000: raise ValueError('Source exceeds 300,000 points')
@@ -170,7 +176,10 @@ class NoiseSpread(plugins.ObjectData):
     def GetVirtualObjects(self,op,hh):
         result=c4d.BaseObject(c4d.Onull); result.SetName('NoiseSpread instances')
         if getattr(self.state,'busy',False): return result
-        self.state.busy=True; sampler=None
+        # Do not start a status-bar job for a valid cached output.
+        if not self.retry and not op.CheckCache(hh) and not op.IsDirty(c4d.DIRTYFLAGS_DATA):
+            return op.GetCache(hh)
+        self.state.busy=True; sampler=None; job=None
         try:
             if self.retry: op.SetDirty(c4d.DIRTYFLAGS_DATA)
             self.retry=False
@@ -178,6 +187,8 @@ class NoiseSpread(plugins.ObjectData):
             if first is None:
                 self.set_bounds((0.,0.,0.),(0.,0.,0.))
                 self.status='Add a surface as first child, then source objects.'; return result
+            job=progress_ui.Progress(c4d.threading.GeGetCurrentThread())
+            job.stage('Evaluating child geometry')
             clone=op.GetAndCheckHierarchyClone(hh,first,c4d.HIERARCHYCLONEFLAGS_ASPOLY,True)
             if not clone or clone['clone'] is None:
                 self.status='Waiting for evaluated children'; return result
@@ -198,7 +209,7 @@ class NoiseSpread(plugins.ObjectData):
             visible_surface.InsertUnderLast(result)
             lo,hi=bounds_of(visible_surface)
             self.set_bounds(lo,hi)
-            surface=read_surface(surface_node,(op[SELECTION] or '').strip())
+            surface=read_surface(surface_node,(op[SELECTION] or '').strip(),job)
             sources=[]; prototypes=[]; radii=[]; scales=[]; extents=[]
             library=c4d.BaseObject(c4d.Onull); library.SetName('Source prototypes')
             library.SetEditorMode(c4d.MODE_OFF); library.SetRenderMode(c4d.MODE_OFF)
@@ -208,7 +219,7 @@ class NoiseSpread(plugins.ObjectData):
                 if evaluated is None: raise ValueError('Evaluated source hierarchy is incomplete')
                 m=original.GetMl(); scale=c4d.Vector(m.v1.GetLength(),m.v2.GetLength(),m.v3.GetLength())
                 sources.append(original); scales.append(scale)
-                radius,extent=source_radius(evaluated,scale,True)
+                radius,extent=source_radius(evaluated,scale,True,job)
                 radii.append(radius); extents.append(extent)
                 # Render instances cannot reference children consumed by a generator.
                 # Keep one evaluated prototype per source inside our output cache.
@@ -220,14 +231,14 @@ class NoiseSpread(plugins.ObjectData):
                 master.InsertUnderLast(library); prototypes.append(master)
                 original=original.GetNext(); evaluated=evaluated.GetNext()
             feather=max(0.,min(.99,float(op[FEATHER])))
+            job.stage('Preparing Noise shader' if feather else 'Preparing packing')
             if feather: sampler=NoiseSampler(op[NOISE],op.GetDocument(),op.GetMg(),surface)
-            thread=c4d.threading.GeGetCurrentThread()
-            def check():
-                if thread and thread.TestBreak(): raise InterruptedError()
-            items,status=geo.pack(surface,radii,sampler,float(op[SIZE]),feather,int(op[SEED]),max(1,min(20000,int(op[LIMIT]))),check=check)
+            check=job.check
+            job.stage('Packing surface')
+            items,status=geo.pack(surface,radii,sampler,float(op[SIZE]),feather,int(op[SEED]),max(1,min(20000,int(op[LIMIT]))),check=check,progress=job.stage)
             if status.startswith('Cancelled'): raise InterruptedError()
             for i,(p,r,n,src,s,tri,bary) in enumerate(items):
-                if i%128==0: check()
+                if i%128==0: job.count(i,len(items),'Creating render instances')
                 instance=c4d.BaseObject(c4d.Oinstance)
                 instance[c4d.INSTANCEOBJECT_LINK]=prototypes[src]
                 instance[c4d.INSTANCEOBJECT_RENDERINSTANCE_MODE]=c4d.INSTANCEOBJECT_RENDERINSTANCE_MODE_SINGLEINSTANCE
@@ -240,6 +251,7 @@ class NoiseSpread(plugins.ObjectData):
                 lo=tuple(min(lo[k],p[k]-extent) for k in range(3))
                 hi=tuple(max(hi[k],p[k]+extent) for k in range(3))
             self.set_bounds(lo,hi)
+            job.count(len(items),len(items),'Creating render instances')
             self.status='{} instances | {}'.format(len(items),status)
             return result
         except InterruptedError:
@@ -254,10 +266,15 @@ class NoiseSpread(plugins.ObjectData):
         except Exception as error:
             self.status=str(error); traceback.print_exc(); return result
         finally:
-            if sampler is not None: sampler.close()
-            self.state.busy=False
+            try:
+                if sampler is not None: sampler.close()
+            finally:
+                if job is not None: job.close()
+                self.state.busy=False
 
 if __name__=='__main__':
+    if not progress_ui.register_progress():
+        raise RuntimeError('NoiseSpread progress registration failed: plugin ID conflict')
     icon=bitmaps.BaseBitmap()
     if icon.InitWith(os.path.join(ROOT,'res','icon.png'))[0]!=c4d.IMAGERESULT_OK: icon=None
     if not plugins.RegisterObjectPlugin(PLUGIN_ID,'NoiseSpread',NoiseSpread,'Onoisespread',c4d.OBJECT_GENERATOR|c4d.OBJECT_INPUT,icon):

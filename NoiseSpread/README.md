@@ -1,6 +1,6 @@
-# NoiseSpread 1.0.2
+# NoiseSpread 1.0.3
 
-Dense surface packing with native Cinema 4D Noise and render instances. Python generator for Cinema 4D 2026, with no external runtime dependencies.
+Dense surface packing with native Cinema 4D Noise and render instances. Python generator tested in Cinema 4D 2027, with no external runtime dependencies.
 
 ## Use
 
@@ -43,7 +43,7 @@ Noise animation can change both sizes and the packing layout between frames; per
 
 Copy the entire `NoiseSpread` folder into the Cinema 4D user `plugins` folder, then restart Cinema 4D. This workstation's target is:
 
-`C:/Users/Pavel/AppData/Roaming/Maxon/Maxon Cinema 4D 2026_1ABCDC12/plugins/NoiseSpread`
+`C:/Users/Pavel/AppData/Roaming/Maxon/Maxon Cinema 4D 2027_C7F976AA/plugins/NoiseSpread`
 
 Local plugin ID: **1069993**. Obtain an official unique Maxon plugin ID before public distribution. The icon contains four filled, touching circles in **#0198FC**, with a transparent background; editable SVG and 512px PNG are in `res`.
 
@@ -54,6 +54,22 @@ Keep the first surface visible, including when a selection name is invalid or so
 ## 1.0.2 changes
 
 Fix an editor cancellation bug: interrupted packing or instance creation previously returned a valid surface-only cache, which Cinema 4D could keep indefinitely. Interruptions now invalidate the result and request a retry on the next evaluation pass without requiring a parameter edit. Dirty tracking excludes incidental child-cache and description changes to avoid unnecessary rebuilds. Native Cinema 4D regressions cover cancellation at both stages and automatic recovery. The reported primitive-sphere scene generates 182 instances in approximately 1.8 seconds on this workstation.
+
+## 1.0.3: calculation progress and optimization
+
+The bottom-left Cinema 4D status bar shows busy stages while evaluating inputs, building the surface search, measuring footprints and growing the packing front. Reading polygons, preparing triangles, gap-search trials and creating instances report percentages for their measured stage. These percentages describe the current stage, not an estimated total running time. Workers publish coalesced notifications; only the main-thread message handler calls the status UI. Completion, errors and cancellation remove the job and clear its status; nested/concurrent NoiseSpread jobs restore the remaining job. Valid cache hits do not create a progress job. Progress uses local message plugin ID **1070003** in addition to generator ID **1069993**.
+
+Optimization removes temporary Python generators from hot 3D arithmetic, avoids duplicate neighbor-distance calculations, precomputes triangle bounds and split centers for the search tree, precomputes front direction angles, and reuses each mesh's inverse matrix. The number of gap trials, contact attempts, source choices, size field and clearance rules are unchanged.
+
+Three-run median standalone Python 3.11 benchmarks (including surface search construction, same inputs and 12,000 gap trials):
+
+| Case | Before | 1.0.3 | Speedup | Instances |
+| --- | ---: | ---: | ---: | ---: |
+| Flat, uniform | 0.395 s | 0.218 s | 1.81x | 177 |
+| Curved, uniform | 2.101 s | 0.854 s | 2.46x | 246 |
+| Curved, noise sizes | 27.924 s | 9.675 s | 2.89x | 338 |
+
+All three benchmark outputs match the previous version exactly, including centers, radii, normals, source choices and scales. These are packing-engine timings with a deterministic scalar noise function, not total viewport or native Noise-shader timings. Reports and the benchmark script are in `artifacts/noisespread`. The full native integration suite passes in **Cinema 4D 2027.0.0**, including Standard rendering. Geometry/progress unit tests cover packing invariants, worker/main-thread separation, coalescing, nested jobs, cancellation cleanup and idle status behavior.
 
 ## Verification
 

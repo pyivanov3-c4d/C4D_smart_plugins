@@ -7,6 +7,7 @@ import traceback
 
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'artifacts/noisespread'
+OUT.mkdir(parents=True,exist_ok=True)
 report={'version':c4d.GetC4DVersion(),'checks':[]}
 
 def children(obj):
@@ -116,7 +117,7 @@ def run():
     assert op.GetCache() is not None
     assert not children(op.GetCache())
     assert op.GetRad().GetLength()>50.,'Surface must stay visible without sources'
-    repro=c4d.documents.LoadDocument(str(OUT/'user-repro.c4d'),c4d.SCENEFILTER_OBJECTS|c4d.SCENEFILTER_MATERIALS,None)
+    repro=c4d.documents.LoadDocument(str(OUT/'user-repro.c4d'),c4d.SCENEFILTER_OBJECTS|c4d.SCENEFILTER_MATERIALS,None) if (OUT/'user-repro.c4d').exists() else None
     if repro:
         repro.ExecutePasses(None,True,True,True,c4d.BUILDFLAGS_NONE)
         generator=repro.GetFirstObject(); cached=generator.GetCache()

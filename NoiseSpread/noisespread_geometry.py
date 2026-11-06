@@ -3,10 +3,10 @@ import bisect
 import math
 import random
 
-def add(a,b): return tuple(x+y for x,y in zip(a,b))
-def sub(a,b): return tuple(x-y for x,y in zip(a,b))
-def mul(a,s): return tuple(x*s for x in a)
-def dot(a,b): return sum(x*y for x,y in zip(a,b))
+def add(a,b): return (a[0]+b[0],a[1]+b[1],a[2]+b[2])
+def sub(a,b): return (a[0]-b[0],a[1]-b[1],a[2]-b[2])
+def mul(a,s): return (a[0]*s,a[1]*s,a[2]*s)
+def dot(a,b): return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]
 def cross(a,b): return (a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0])
 def length(a): return math.sqrt(dot(a,a))
 def unit(a): return mul(a,1./max(length(a),1e-30))
@@ -37,10 +37,12 @@ def closest(p,a,b,c):
 
 class Surface:
     """Triangle BVH; payloads belong to host (e.g. UVW / source transform)."""
-    def __init__(self,triangles,payloads=None):
+    def __init__(self,triangles,payloads=None,progress=None):
         self.triangles=[]; self.normals=[]; self.payloads=[]; self.cdf=[]
+        self._progress=progress
         total=0.
         for i,t in enumerate(triangles):
+            if progress and i%1024==0: progress('Preparing triangles',100.*i/max(1,len(triangles)))
             n=cross(sub(t[1],t[0]),sub(t[2],t[0])); area=length(n)*.5
             if area<1e-16: continue
             if not all(math.isfinite(v) for p in t for v in p): raise ValueError('Non-finite surface')
@@ -49,21 +51,32 @@ class Surface:
             total+=area; self.cdf.append(total)
         if not self.triangles: raise ValueError('No nondegenerate polygons in the selected surface')
         self.area=total
+        self._tri_lo=[tuple(min(a[k],b[k],c[k]) for k in range(3)) for a,b,c in self.triangles]
+        self._tri_hi=[tuple(max(a[k],b[k],c[k]) for k in range(3)) for a,b,c in self.triangles]
+        self._centers=[tuple(a[k]+b[k]+c[k] for k in range(3)) for a,b,c in self.triangles]
+        if progress: progress('Building surface search',None)
         self.tree=self._build(list(range(len(self.triangles))))
+        # Construction-only data must not keep the UI job or duplicate bounds alive.
+        del self._progress,self._tri_lo,self._tri_hi,self._centers
 
     def _build(self,ids):
-        lo=tuple(min(self.triangles[i][j][k] for i in ids for j in range(3)) for k in range(3))
-        hi=tuple(max(self.triangles[i][j][k] for i in ids for j in range(3)) for k in range(3))
+        if self._progress: self._progress('Building surface search',None)
+        lo=tuple(min(self._tri_lo[i][k] for i in ids) for k in range(3))
+        hi=tuple(max(self._tri_hi[i][k] for i in ids) for k in range(3))
         if len(ids)<=8: return lo,hi,ids,None
         axis=max(range(3),key=lambda k:hi[k]-lo[k])
-        ids.sort(key=lambda i:sum(p[axis] for p in self.triangles[i]))
+        ids.sort(key=lambda i:self._centers[i][axis])
         mid=len(ids)//2
         return lo,hi,self._build(ids[:mid]),self._build(ids[mid:])
 
     def project(self,p,max_distance=float('inf')):
         best=max_distance*max_distance; result=None; stack=[self.tree]
         def bound(node):
-            return sum(max(node[0][k]-p[k],0.,p[k]-node[1][k])**2 for k in range(3))
+            lo,hi=node[0],node[1]
+            x=max(lo[0]-p[0],0.,p[0]-hi[0])
+            y=max(lo[1]-p[1],0.,p[1]-hi[1])
+            z=max(lo[2]-p[2],0.,p[2]-hi[2])
+            return x*x+y*y+z*z
         while stack:
             node=stack.pop()
             if bound(node)>best: continue
@@ -95,12 +108,15 @@ class Grid:
                     for i in self.cells.get((x,y,z),()): yield self.items[i]
     def accepts(self,p,r):
         # Deliberately use chord distance, a conservative bound on surface distance.
-        return all(dot(sub(p,q[0]),sub(p,q[0])) >= (r+q[1])**2*(1-1e-10) for q in self.nearby(p))
+        for q in self.nearby(p):
+            point=q[0]; x=p[0]-point[0]; y=p[1]-point[1]; z=p[2]-point[2]
+            if x*x+y*y+z*z < (r+q[1])**2*(1-1e-10): return False
+        return True
     def insert(self,item):
         self.cells.setdefault(self.key(item[0]),[]).append(len(self.items)); self.items.append(item)
 
 def pack(surface,radii,sample_scale,size=1.,feather=0.,seed=137,max_count=5000,
-         attempts=12000,check=None):
+         attempts=12000,check=None,progress=None):
     """Return (position,radius,normal,source,scale,triangle,barycentric) records.
 
     Contact propagation gives hexagonal domains for equal radii. Noise is sampled
@@ -114,10 +130,17 @@ def pack(surface,radii,sample_scale,size=1.,feather=0.,seed=137,max_count=5000,
     grid=Grid(2*maximum); queue=0; probes=0; gap_trials=0
     # A single domain direction keeps planar equal-radius packing hexagonal.
     phase=rng.random()*math.tau
+    steps=6 if feather==0 and max(radii)-min(radii)<1e-9 else 24
+    directions=[(math.cos(phase+j*math.tau/steps),math.sin(phase+j*math.tau/steps)) for j in range(steps)]
     def candidate(hit,src):
         nonlocal probes
         probes+=1
         if check and probes%128==0: check()
+        if progress and probes%128==0:
+            # The advancing front has no known final count; do not imply that
+            # Instance Limit is the expected number of placements.
+            if queue<len(grid.items): progress('Packing surface ({} instances)'.format(len(grid.items)),None)
+            else: progress('Searching remaining gaps',100.*gap_trials/max(1,attempts))
         value=max(0.,min(1.,float(sample_scale(hit)))) if feather else .5
         if not math.isfinite(value): raise ValueError('Noise returned a non-finite sample')
         scale=size*(1-feather+2*feather*value)
@@ -151,10 +174,8 @@ def pack(surface,radii,sample_scale,size=1.,feather=0.,seed=137,max_count=5000,
             if queue<len(grid.items):
                 parent=grid.items[queue]; queue+=1
                 x,z=frame(parent[2]); src=rng.randrange(len(radii))
-                steps=6 if feather==0 and max(radii)-min(radii)<1e-9 else 24
-                for j in range(steps):
-                    angle=phase+j*math.tau/steps
-                    contact(parent,add(mul(x,math.cos(angle)),mul(z,math.sin(angle))),src)
+                for cosine,sine in directions:
+                    contact(parent,add(mul(x,cosine),mul(z,sine)),src)
                     if len(grid.items)>=max_count: break
                 # Two-contact candidates close triangular gaps left by variable radii.
                 if steps>6 and len(grid.items)<max_count:
